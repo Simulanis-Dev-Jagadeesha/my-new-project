@@ -28,7 +28,10 @@ pipeline {
             steps {
                 dir('frontend') {
                     script {
-                        dockerImageFrontend = docker.build("${env.ECR_REPO_URI_FRONTEND}:latest")
+                        // List files to debug
+                        sh 'ls -la'
+                        // Build Docker image
+                        dockerImageFrontend = docker.build("${env.ECR_REPO_URI_FRONTEND}:latest", "-f Dockerfile .")
                     }
                 }
             }
@@ -37,7 +40,10 @@ pipeline {
             steps {
                 dir('backend') {
                     script {
-                        dockerImageBackend = docker.build("${env.ECR_REPO_URI_BACKEND}:latest")
+                        // List files to debug
+                        sh 'ls -la'
+                        // Build Docker image
+                        dockerImageBackend = docker.build("${env.ECR_REPO_URI_BACKEND}:latest", "-f Dockerfile .")
                     }
                 }
             }
