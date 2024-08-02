@@ -11,8 +11,12 @@ pipeline {
     stages {
         stage('Checkout SCM') {
             steps {
-                checkout([$class: 'GitSCM', 
-                          userRemoteConfigs: [[url: 'https://github.com/Simulanis-Dev-Jagadeesha/my-new-project.git', credentialsId: 'gitcred']]])
+                script {
+                    echo "Checking out code from Git repository"
+                    checkout([$class: 'GitSCM',
+                              userRemoteConfigs: [[url: 'https://github.com/Simulanis-Dev-Jagadeesha/my-new-project.git', credentialsId: 'gitcred']],
+                              branches: [[name: '*/main']]]) // Ensure this matches your branch name
+                }
             }
         }
 
