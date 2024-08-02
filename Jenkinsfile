@@ -1,84 +1,107 @@
 pipeline {
     agent any
+
     environment {
         AWS_REGION = 'us-east-1'
-        ECR_REPO_FRONTEND = '058264319429.dkr.ecr.us-east-1.amazonaws.com/frontend'
-        ECR_REPO_BACKEND = '058264319429.dkr.ecr.us-east-1.amazonaws.com/backend'
+        CLUSTER_NAME = 'my-cluster1'
+        ECR_FRONTEND_REPO = '058264319429.dkr.ecr.us-east-1.amazonaws.com/frontend'
+        ECR_BACKEND_REPO = '058264319429.dkr.ecr.us-east-1.amazonaws.com/backend'
     }
+
     stages {
+        stage('Checkout SCM') {
+            steps {
+                checkout([$class: 'GitSCM', 
+                          userRemoteConfigs: [[url: 'https://github.com/Simulanis-Dev-Jagadeesha/my-new-project.git', credentialsId: 'gitcred']]])
+            }
+        }
+
         stage('Authenticate to ECR') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'awscred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                withCredentials([aws(credentialsId: 'awscred', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                     script {
-                        sh '''
-                        aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-                        aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-                        aws configure set region $AWS_REGION
-                        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_FRONTEND
-                        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_BACKEND
-                        '''
+                        sh 'aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID'
+                        sh 'aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY'
+                        sh 'aws configure set region $AWS_REGION'
+                        
+                        // Login to ECR
+                        sh 'aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_FRONTEND_REPO'
+                        sh 'aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_BACKEND_REPO'
                     }
                 }
             }
         }
+
         stage('Build Docker Images') {
             parallel {
                 stage('Build Frontend Image') {
                     steps {
                         dir('frontend') {
                             script {
-                                sh '''
-                                docker build -t $ECR_REPO_FRONTEND:latest -f Dockerfile .
-                                '''
+                                sh 'docker build -t $ECR_FRONTEND_REPO:latest -f Dockerfile .'
                             }
                         }
                     }
                 }
+
                 stage('Build Backend Image') {
                     steps {
                         dir('backend') {
                             script {
-                                sh '''
-                                docker build -t $ECR_REPO_BACKEND:latest -f Dockerfile .
-                                '''
+                                sh 'docker build -t $ECR_BACKEND_REPO:latest -f Dockerfile .'
                             }
                         }
                     }
                 }
             }
         }
+
         stage('Push Docker Images to ECR') {
             parallel {
                 stage('Push Frontend Image') {
                     steps {
                         script {
-                            sh '''
-                            docker push $ECR_REPO_FRONTEND:latest
-                            '''
+                            sh 'docker push $ECR_FRONTEND_REPO:latest'
                         }
                     }
                 }
+
                 stage('Push Backend Image') {
                     steps {
                         script {
-                            sh '''
-                            docker push $ECR_REPO_BACKEND:latest
-                            '''
+                            sh 'docker push $ECR_BACKEND_REPO:latest'
                         }
                     }
                 }
             }
         }
+
         stage('Deploy to EKS') {
             steps {
                 script {
-                    // Assuming you have deployment configurations in YAML files
+                    // Ensure the cluster is reachable
                     sh '''
-                    kubectl apply -f deployment.yml
-                    kubectl apply -f service.yml
+                    echo "Updating kubeconfig for cluster..."
+                    aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+                    
+                    echo "Checking cluster connectivity..."
+                    kubectl cluster-info
+                    if [ $? -ne 0 ]; then
+                        echo "Failed to connect to the cluster. Exiting."
+                        exit 1
+                    fi
                     '''
+
+                    // Apply Kubernetes configurations
+                    sh 'kubectl apply -f deployment.yml'
                 }
             }
+        }
+    }
+
+    post {
+        failure {
+            echo 'Pipeline failed. Please check the console output for more details.'
         }
     }
 }
