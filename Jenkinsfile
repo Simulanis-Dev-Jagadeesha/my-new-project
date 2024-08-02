@@ -73,7 +73,7 @@ pipeline {
             steps {
                 script {
                     sh """
-                    aws eks update-kubeconfig --name my-cluster --region us-east-1
+                    aws eks update-kubeconfig --name my-cluster1 --region us-east-1
                     kubectl apply -f deployment.yml
                     kubectl apply -f service.yml
                     """
