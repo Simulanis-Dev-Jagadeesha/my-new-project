@@ -2,7 +2,8 @@ pipeline {
     agent any
     environment {
         AWS_REGION = 'us-east-1'
-        ECR_REPO_URI = '058264319429.dkr.ecr.us-east-1.amazonaws.com/node-todo-app'
+        ECR_REPO_FRONTEND = '058264319429.dkr.ecr.us-east-1.amazonaws.com/node-todo-app/frontend'
+        ECR_REPO_BACKEND = '058264319429.dkr.ecr.us-east-1.amazonaws.com/node-todo-app/backend'
     }
     stages {
         stage('Authenticate to ECR') {
@@ -12,7 +13,8 @@ pipeline {
                         sh '''
                         aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
                         aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-                        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
+                        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_FRONTEND
+                        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_BACKEND
                         '''
                     }
                 }
@@ -25,7 +27,7 @@ pipeline {
                         dir('frontend') {
                             script {
                                 sh '''
-                                docker build -t $ECR_REPO_URI/frontend:latest -f Dockerfile .
+                                docker build -t $ECR_REPO_FRONTEND:latest -f Dockerfile .
                                 '''
                             }
                         }
@@ -36,7 +38,7 @@ pipeline {
                         dir('backend') {
                             script {
                                 sh '''
-                                docker build -t $ECR_REPO_URI/backend:latest -f Dockerfile .
+                                docker build -t $ECR_REPO_BACKEND:latest -f Dockerfile .
                                 '''
                             }
                         }
@@ -50,7 +52,7 @@ pipeline {
                     steps {
                         script {
                             sh '''
-                            docker push $ECR_REPO_URI/frontend:latest
+                            docker push $ECR_REPO_FRONTEND:latest
                             '''
                         }
                     }
@@ -59,7 +61,7 @@ pipeline {
                     steps {
                         script {
                             sh '''
-                            docker push $ECR_REPO_URI/backend:latest
+                            docker push $ECR_REPO_BACKEND:latest
                             '''
                         }
                     }
