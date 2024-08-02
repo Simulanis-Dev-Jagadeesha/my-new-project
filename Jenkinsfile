@@ -72,18 +72,13 @@ pipeline {
         stage('Deploy to EKS') {
             steps {
                 script {
-                    // Assuming kubectl is configured to interact with the EKS cluster
+                    // Assuming you have deployment configurations in YAML files
                     sh '''
                     kubectl apply -f deployment.yml
                     kubectl apply -f service.yml
                     '''
                 }
             }
-        }
-    }
-    post {
-        always {
-            cleanWs()
         }
     }
 }
