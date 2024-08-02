@@ -10,12 +10,9 @@ pipeline {
     stages {
         stage('Checkout SCM') {
             steps {
-                script {
-                    echo "Checking out code from Git repository"
-                    checkout([$class: 'GitSCM',
-                              userRemoteConfigs: [[url: 'https://github.com/Simulanis-Dev-Jagadeesha/my-new-project.git', credentialsId: 'gitcred']],
-                              branches: [[name: '*/main']]])
-                }
+                checkout([$class: 'GitSCM',
+                          userRemoteConfigs: [[url: 'https://github.com/Simulanis-Dev-Jagadeesha/my-new-project.git', credentialsId: 'gitcred']],
+                          branches: [[name: '*/main']]])
             }
         }
 
@@ -100,7 +97,6 @@ pipeline {
                     script {
                         echo "Deploying to EKS"
                         sh '''
-                        # Assuming you have kubectl configured with your EKS cluster
                         kubectl apply -f deployment.yml
                         kubectl apply -f service.yml
                         '''
