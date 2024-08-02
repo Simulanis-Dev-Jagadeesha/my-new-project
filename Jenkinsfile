@@ -3,7 +3,6 @@ pipeline {
 
     environment {
         AWS_REGION = 'us-east-1'
-        CLUSTER_NAME = 'my-cluster1'
         ECR_FRONTEND_REPO = '058264319429.dkr.ecr.us-east-1.amazonaws.com/frontend'
         ECR_BACKEND_REPO = '058264319429.dkr.ecr.us-east-1.amazonaws.com/backend'
     }
@@ -43,20 +42,24 @@ pipeline {
             parallel {
                 stage('Build Frontend Image') {
                     steps {
-                        dir('frontend') {
-                            script {
-                                sh 'docker build -t $ECR_FRONTEND_REPO:latest -f Dockerfile .'
-                            }
+                        script {
+                            echo "Building Frontend Docker image"
+                            sh '''
+                            cd frontend
+                            docker build -t $ECR_FRONTEND_REPO:latest .
+                            '''
                         }
                     }
                 }
 
                 stage('Build Backend Image') {
                     steps {
-                        dir('backend') {
-                            script {
-                                sh 'docker build -t $ECR_BACKEND_REPO:latest -f Dockerfile .'
-                            }
+                        script {
+                            echo "Building Backend Docker image"
+                            sh '''
+                            cd backend
+                            docker build -t $ECR_BACKEND_REPO:latest .
+                            '''
                         }
                     }
                 }
@@ -68,7 +71,11 @@ pipeline {
                 stage('Push Frontend Image') {
                     steps {
                         script {
-                            sh 'docker push $ECR_FRONTEND_REPO:latest'
+                            echo "Pushing Frontend Docker image to ECR"
+                            sh '''
+                            docker tag $ECR_FRONTEND_REPO:latest $ECR_FRONTEND_REPO:latest
+                            docker push $ECR_FRONTEND_REPO:latest
+                            '''
                         }
                     }
                 }
@@ -76,7 +83,11 @@ pipeline {
                 stage('Push Backend Image') {
                     steps {
                         script {
-                            sh 'docker push $ECR_BACKEND_REPO:latest'
+                            echo "Pushing Backend Docker image to ECR"
+                            sh '''
+                            docker tag $ECR_BACKEND_REPO:latest $ECR_BACKEND_REPO:latest
+                            docker push $ECR_BACKEND_REPO:latest
+                            '''
                         }
                     }
                 }
@@ -85,22 +96,15 @@ pipeline {
 
         stage('Deploy to EKS') {
             steps {
-                script {
-                    // Ensure the cluster is reachable
-                    sh '''
-                    echo "Updating kubeconfig for cluster..."
-                    aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
-                    
-                    echo "Checking cluster connectivity..."
-                    kubectl cluster-info
-                    if [ $? -ne 0 ]; then
-                        echo "Failed to connect to the cluster. Exiting."
-                        exit 1
-                    fi
-                    '''
-
-                    // Apply Kubernetes configurations
-                    sh 'kubectl apply -f deployment.yml'
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'awscred']]) {
+                    script {
+                        echo "Deploying to EKS"
+                        sh '''
+                        # Assuming you have kubectl configured with your EKS cluster
+                        kubectl apply -f deployment.yml
+                        kubectl apply -f service.yml
+                        '''
+                    }
                 }
             }
         }
