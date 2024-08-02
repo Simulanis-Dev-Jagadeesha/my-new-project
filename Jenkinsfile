@@ -1,76 +1,67 @@
 pipeline {
     agent any
-
     environment {
-        AWS_CREDENTIALS = credentials('awscred')
-        FRONTEND_REPO_URL = "https://github.com/Simulanis-Dev-Jagadeesha/my-new-project.git"
-        BACKEND_REPO_URL = "https://github.com/Simulanis-Dev-Jagadeesha/my-new-project.git"
-        ECR_REPO_URI_FRONTEND = "058264319429.dkr.ecr.us-east-1.amazonaws.com/frontend"
-        ECR_REPO_URI_BACKEND = "058264319429.dkr.ecr.us-east-1.amazonaws.com/backend"
+        AWS_REGION = 'us-east-1'
+        ECR_REPO_URI = '058264319429.dkr.ecr.us-east-1.amazonaws.com/node-todo-app'
     }
-
     stages {
-        stage('Clone Frontend Repository') {
-            steps {
-                dir('frontend') {
-                    git credentialsId: 'gitcred', url: "${env.FRONTEND_REPO_URL}", branch: 'main'
-                }
-            }
-        }
-        stage('Clone Backend Repository') {
-            steps {
-                dir('backend') {
-                    git credentialsId: 'gitcred', url: "${env.BACKEND_REPO_URL}", branch: 'main'
-                }
-            }
-        }
-        stage('Build Frontend Docker Image') {
-            steps {
-                dir('frontend') {
-                    script {
-                        // List files to debug
-                        sh 'ls -la'
-                        // Build Docker image
-                        dockerImageFrontend = docker.build("${env.ECR_REPO_URI_FRONTEND}:latest", "-f Dockerfile .")
-                    }
-                }
-            }
-        }
-        stage('Build Backend Docker Image') {
-            steps {
-                dir('backend') {
-                    script {
-                        // List files to debug
-                        sh 'ls -la'
-                        // Build Docker image
-                        dockerImageBackend = docker.build("${env.ECR_REPO_URI_BACKEND}:latest", "-f Dockerfile .")
-                    }
-                }
-            }
-        }
         stage('Authenticate to ECR') {
             steps {
-                script {
-                    sh '''
-                    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 058264319429.dkr.ecr.us-east-1.amazonaws.com
-                    '''
-                }
-            }
-        }
-        stage('Push Frontend to ECR') {
-            steps {
-                script {
-                    docker.withRegistry("https://${env.ECR_REPO_URI_FRONTEND}", "${env.AWS_CREDENTIALS}") {
-                        dockerImageFrontend.push('latest')
+                withCredentials([usernamePassword(credentialsId: 'awscred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    script {
+                        sh '''
+                        aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+                        aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+                        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
+                        '''
                     }
                 }
             }
         }
-        stage('Push Backend to ECR') {
-            steps {
-                script {
-                    docker.withRegistry("https://${env.ECR_REPO_URI_BACKEND}", "${env.AWS_CREDENTIALS}") {
-                        dockerImageBackend.push('latest')
+        stage('Build Docker Images') {
+            parallel {
+                stage('Build Frontend Image') {
+                    steps {
+                        dir('frontend') {
+                            script {
+                                sh '''
+                                docker build -t $ECR_REPO_URI/frontend:latest -f Dockerfile .
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage('Build Backend Image') {
+                    steps {
+                        dir('backend') {
+                            script {
+                                sh '''
+                                docker build -t $ECR_REPO_URI/backend:latest -f Dockerfile .
+                                '''
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        stage('Push Docker Images to ECR') {
+            parallel {
+                stage('Push Frontend Image') {
+                    steps {
+                        script {
+                            sh '''
+                            docker push $ECR_REPO_URI/frontend:latest
+                            '''
+                        }
+                    }
+                }
+                stage('Push Backend Image') {
+                    steps {
+                        script {
+                            sh '''
+                            docker push $ECR_REPO_URI/backend:latest
+                            '''
+                        }
                     }
                 }
             }
@@ -78,13 +69,18 @@ pipeline {
         stage('Deploy to EKS') {
             steps {
                 script {
-                    sh """
-                    aws eks update-kubeconfig --name my-cluster1 --region us-east-1
+                    // Assuming you have deployment configurations in YAML files
+                    sh '''
                     kubectl apply -f deployment.yml
                     kubectl apply -f service.yml
-                    """
+                    '''
                 }
             }
+        }
+    }
+    post {
+        always {
+            cleanWs()
         }
     }
 }
