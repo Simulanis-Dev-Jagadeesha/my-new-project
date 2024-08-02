@@ -15,22 +15,25 @@ pipeline {
                     echo "Checking out code from Git repository"
                     checkout([$class: 'GitSCM',
                               userRemoteConfigs: [[url: 'https://github.com/Simulanis-Dev-Jagadeesha/my-new-project.git', credentialsId: 'gitcred']],
-                              branches: [[name: '*/main']]]) // Ensure this matches your branch name
+                              branches: [[name: '*/main']]])
                 }
             }
         }
 
         stage('Authenticate to ECR') {
             steps {
-                withCredentials([aws(credentialsId: 'awscred', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'awscred']]) {
                     script {
-                        sh 'aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID'
-                        sh 'aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY'
-                        sh 'aws configure set region $AWS_REGION'
+                        sh '''
+                        echo "Configuring AWS CLI..."
+                        aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+                        aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+                        aws configure set region $AWS_REGION
                         
-                        // Login to ECR
-                        sh 'aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_FRONTEND_REPO'
-                        sh 'aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_BACKEND_REPO'
+                        echo "Logging in to ECR..."
+                        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_FRONTEND_REPO
+                        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_BACKEND_REPO
+                        '''
                     }
                 }
             }
